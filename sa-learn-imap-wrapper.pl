@@ -6,7 +6,7 @@
 
 # to create the imap spam learning folders use:
 # 
-# cat <<EOF | cyradm -u benk imap.intern.b1-systems.de
+# cat <<EOF | cyradm -u benk imap.mydomain.de
 # createmailbox INBOX.Learn.Ham
 # setacl INBOX.Learn.Ham testuser1 lrswipcda
 # subscribe INBOX.Learn.Ham
