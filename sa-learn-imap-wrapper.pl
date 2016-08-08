@@ -6,7 +6,7 @@
 
 # to create the imap spam learning folders use:
 # 
-# cat <<EOF | cyradm -u benk imap.mydomain.de
+# cat <<EOF | cyradm -u benk imap.intern.b1-systems.de
 # createmailbox INBOX.Learn.Ham
 # setacl INBOX.Learn.Ham testuser1 lrswipcda
 # subscribe INBOX.Learn.Ham
@@ -165,6 +165,7 @@ sub process {
       };
 
       process_mails($_imap, $_config, 'ham');
+      delete_messages($_imap, $_config);
     } elsif ($folder =~ /$_config->{'regex-spam'}/) {
 
       if (not $_imap->selectable($folder) or not $_imap->select($folder)) {
@@ -174,10 +175,9 @@ sub process {
       };
 
       process_mails($_imap, $_config, 'spam');
+      delete_messages($_imap, $_config);
     }
   }
-
-  delete_messages($_imap, $_config);
 
   sa_sync($_config);
 }
