@@ -15,6 +15,16 @@
 # subscribe INBOX.Learn.Spam
 # EOF
 
+# to create the sqlite db use:
+#
+# sqlite3 /var/spool/amavis/.spamassassin/sa-learn-imap-wrapper.db <<EOF
+# CREATE TABLE stats (
+#   'date'  INT  NOT NULL,
+#   'nham'  INT  NOT NULL,
+#   'nspam' INT  NOT NULL
+# );
+# EOF
+
 use strict;
 use warnings;
 
@@ -24,6 +34,7 @@ use Mail::IMAPClient;
 use File::Basename;
 use IO::Socket::SSL;
 use Getopt::Long;
+use DBI;
 
 ###
 # defaults
@@ -35,6 +46,12 @@ my $config = {
   'keep'       => '7',
   'flag'       => 'sa-learn-imap-wrapper-processed',
   'debug'      => undef,
+  'db' => {
+    'dsn' => 'DBI:SQLite:dbname=/var/spool/amavis/.spamassassin/sa-learn-imap-wrapper.db',
+    'options' => {
+      'RaiseError' => 1 
+    },
+  },
 };
 
 ###
@@ -49,6 +66,7 @@ sub usage {
   print "--regex-ham     regex for ham folders (default: $config->{'regex-ham'})\n";
   print "--regex-spam    regex for spam folders (default: $config->{'regex-spam'})\n";
   print "--keep <DAYS>   keep messages for DAYS days and delete older messages\n";
+  print "--dsn <DSN>     database dsn to save statistics (default: $config->{'db'}->{'dsn'})\n";
   print "--debug         enable debug messages\n";
   print "\n";
 
@@ -68,6 +86,7 @@ sub parse_commandline {
   my $arg_regex_spam = $_config->{'regex-spam'};
   my $arg_keep       = $_config->{'keep'};
   my $arg_debug      = $_config->{'debug'};
+  my $arg_dsn        = $_config->{'db'}->{'dsn'};
 
   my $ret = GetOptions (
     "username|u=s" => \$arg_username,
@@ -75,6 +94,7 @@ sub parse_commandline {
     "hostname|h=s" => \$arg_hostname,
     "regex-ham=s"  => \$arg_regex_ham,
     "regex-spam=s" => \$arg_regex_spam,
+    "dsn=s"        => \$arg_dsn,
     "keep=i"       => \$arg_keep,
     "debug"        => \$arg_debug,
   );
@@ -99,13 +119,14 @@ sub parse_commandline {
     usage();
   }
 
-  $_config->{'username'}   = $arg_username;
-  $_config->{'password'}   = $arg_password;
-  $_config->{'hostname'}   = $arg_hostname;
-  $_config->{'regex-ham'}  = $arg_regex_ham;
-  $_config->{'regex-spam'} = $arg_regex_spam;
-  $_config->{'debug'}      = $arg_debug;
-  $_config->{'keep'}       = $arg_keep;
+  $_config->{'username'}    = $arg_username;
+  $_config->{'password'}    = $arg_password;
+  $_config->{'hostname'}    = $arg_hostname;
+  $_config->{'regex-ham'}   = $arg_regex_ham;
+  $_config->{'regex-spam'}  = $arg_regex_spam;
+  $_config->{'debug'}       = $arg_debug;
+  $_config->{'keep'}        = $arg_keep;
+  $_config->{'db'}->{'dsn'} = $arg_dsn;
 }
 
 ###
@@ -154,6 +175,9 @@ sub process {
 
   my @folders = $_imap->folders() or die("could not list folders.\n");
 
+  my $nham = 0;
+  my $nspam = 0;
+
   foreach my $folder (@folders) {
   
     if ($folder =~ /$_config->{'regex-ham'}/) {
@@ -164,7 +188,7 @@ sub process {
         next;
       };
 
-      process_mails($_imap, $_config, 'ham');
+      $nham += process_mails($_imap, $_config, 'ham');
       delete_messages($_imap, $_config);
     } elsif ($folder =~ /$_config->{'regex-spam'}/) {
 
@@ -174,12 +198,38 @@ sub process {
         next;
       };
 
-      process_mails($_imap, $_config, 'spam');
+      $nspam += process_mails($_imap, $_config, 'spam');
       delete_messages($_imap, $_config);
     }
   }
 
+  save_statistics($_config, $nham, $nspam) if ($nham or $nspam);
+
   sa_sync($_config);
+}
+
+###
+# save spam and ham count for statistics
+sub save_statistics {
+
+  my $_config = shift;
+  my $_nham = shift;
+  my $_nspam = shift;
+
+  my $dbh = DBI->connect (
+    $_config->{'db'}->{'dsn'},
+    $_config->{'db'}->{'userid'},
+    $_config->{'db'}->{'password'},
+    $_config->{'db'}->{'options'},
+  ) or die $DBI::errstr;
+
+  my $sql = "INSERT
+             INTO stats (date, nham, nspam)
+             VALUES (" . time() . ", $_nham, $_nspam)";
+
+  $dbh->do($sql) or die $DBI::errstr;
+
+  $dbh->disconnect();
 }
 
 ###
@@ -203,6 +253,8 @@ sub process_mails {
     download_mails($_imap, $_config, \@mails, $dir);
     sa_learn($_imap, $_config, $_type, $dir);
   }
+
+  return scalar(@mails);
 }
 
 ###
