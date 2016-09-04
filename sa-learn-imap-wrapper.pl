@@ -371,7 +371,7 @@ sub read_config {
 
   my $config2 = decode_json($json);
 
-  %$config = (%$config, %{decode_json($json)});
+  %$_config = (%$_config, %{decode_json($json)});
 }
 
 ###
