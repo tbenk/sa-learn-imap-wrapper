@@ -34,7 +34,17 @@ use Mail::IMAPClient;
 use File::Basename;
 use IO::Socket::SSL;
 use Getopt::Long;
+use Cwd 'abs_path';
+use JSON;
 use DBI;
+
+###
+# possible configuration file locations
+my $CONFIG = [
+  '/etc/sa-learn-imap-wrapper/sa-learn-imap-wrapper.json',
+  '/etc/opt/sa-learn-imap-wrapper/sa-learn-imap-wrapper.json',
+  dirname(abs_path($0)) . '/sa-learn-imap-wrapper.json',
+];
 
 ###
 # defaults
@@ -337,10 +347,40 @@ sub sa_sync {
 }
 
 ###
+# read configuration from configuration files
+sub read_config {
+
+  my $_config = shift;
+
+  my $file;
+
+  foreach my $entry (@$CONFIG) {
+
+    $file = $entry if (-e $entry);
+  }
+
+  return if (not $file);
+
+  my $json;
+  {
+    local $/;
+    open(my $fh, '<', $file) or die("cannot read configuration file '$file'");
+    $json = <$fh>;
+    close $fh;
+  };
+
+  my $config2 = decode_json($json);
+
+  %$config = (%$config, %{decode_json($json)});
+}
+
+###
 # main
 sub main {
 
   eval {
+
+    read_config($config);
 
     parse_commandline($config);
 
