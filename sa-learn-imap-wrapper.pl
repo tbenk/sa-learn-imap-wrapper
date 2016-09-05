@@ -155,23 +155,23 @@ sub imap_connect {
   my $_config = shift;
 
   my $ssl = IO::Socket::SSL->new ( 
-    PeerHost => $config->{'hostname'},
+    PeerHost => $_config->{'hostname'},
     PeerPort => "imaps",
     SSL_verify_mode => "SSL_VERIFY_NONE"
   );
 
-  die ("could not connect to imap server $config->{'hostname'}: $@\n") unless defined $ssl;
+  die ("could not connect to imap server $_config->{'hostname'}: $@\n") unless defined $ssl;
 
   $ssl->autoflush(1);
 
   my $imap = Mail::IMAPClient->new (
     Socket   => $ssl,
-    User     => $config->{'username'},
-    Password => $config->{'password'},
+    User     => $_config->{'username'},
+    Password => $_config->{'password'},
     Peek     => 1
   );
 
-  die ("could not connect to imap server $config->{'hostname'}: $@\n") unless defined $imap;
+  die ("could not connect to imap server $_config->{'hostname'}: $@\n") unless defined $imap;
 
   return $imap;
 }
@@ -316,7 +316,7 @@ sub sa_learn {
   my $_type = shift;
   my $_dir = shift;
 
-  open(SALEARN, "/usr/bin/sa-learn --dbpath '$config->{'dbpath'}' --no-sync --$_type '$_dir/*' 2>&1 |") or die "error: $!\n";
+  open(SALEARN, "/usr/bin/sa-learn --dbpath '$_config->{'dbpath'}' --no-sync --$_type '$_dir/*' 2>&1 |") or die "error: $!\n";
   my @output = <SALEARN>;
   close (SALEARN);
 
@@ -335,7 +335,7 @@ sub sa_sync {
 
   my $_config = shift;
 
-  open(SALEARN, "/usr/bin/sa-learn --sync --dbpath '$config->{'dbpath'}' |");
+  open(SALEARN, "/usr/bin/sa-learn --sync --dbpath '$_config->{'dbpath'}' |");
   my @output = <SALEARN>;
   close (SALEARN);
 
